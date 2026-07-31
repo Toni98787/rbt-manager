@@ -1,24 +1,29 @@
 export type StockStatus = 'available' | 'reserved' | 'out_of_stock' | 'incoming';
 export type PaymentMethod = 'cash' | 'card';
-export type DiscountType = 'percentage' | 'fixed';
+export type DiscountType = 'percent' | 'fixed';
+export type UserRole = 'owner' | 'staff';
 export type SupplierOrderStatus = 'ordered' | 'on_the_way' | 'arrived' | 'in_store';
-export type EventType = 'staff_schedule' | 'customer_pickup' | 'supplier_delivery' | 'business_task' | 'personal_note';
+export type EventType =
+  | 'staff_schedule'
+  | 'customer_pickup'
+  | 'supplier_delivery'
+  | 'business_task'
+  | 'personal_note';
 export type EventPriority = 'low' | 'medium' | 'high';
-export type EventStatus = 'pending' | 'in_progress' | 'done' | 'cancelled';
+export type EventStatus = 'planned' | 'in_progress' | 'done' | 'cancelled';
 export type ThemeMode = 'light' | 'dark' | 'custom';
-export type WidgetSize = 'sm' | 'md' | 'lg' | 'xl';
-export type WidgetType =
+export type WidgetId =
   | 'inventory'
   | 'sales'
   | 'staff'
   | 'top_products'
-  | 'reserved_orders'
+  | 'reserved'
   | 'calendar'
-  | 'supplier_orders'
+  | 'suppliers'
   | 'quick_actions';
 
 export interface ShopSettings {
-  shopName: string;
+  name: string;
   ownerName: string;
   address: string;
   phone: string;
@@ -26,10 +31,9 @@ export interface ShopSettings {
   logoDataUrl: string | null;
   tvaPercent: number;
   currency: string;
-  currencySymbol: string;
 }
 
-export interface ThemeConfig {
+export interface ThemePreset {
   id: string;
   name: string;
   mode: ThemeMode;
@@ -38,74 +42,59 @@ export interface ThemeConfig {
   background: string;
   surface: string;
   text: string;
-  textMuted: string;
-  productCardSize: 'compact' | 'medium' | 'large';
-  fontSize: 'sm' | 'md' | 'lg';
+  muted: string;
+  cardSize: 'compact' | 'medium' | 'large';
+  fontSize: 'small' | 'medium' | 'large';
   buttonShape: 'sharp' | 'rounded' | 'pill';
 }
 
-export interface DashboardWidget {
+export interface StaffUser {
   id: string;
-  type: WidgetType;
-  size: WidgetSize;
-  order: number;
-  visible: boolean;
-}
-
-export interface UserPreferences {
+  name: string;
+  pin: string;
+  role: UserRole;
+  canOverrideDiscount: boolean;
+  active: boolean;
+  layoutPrefs: DashboardLayout;
   themeId: string;
-  widgets: DashboardWidget[];
-  wallpaper: string | null;
 }
 
 export interface Category {
   id: string;
   name: string;
   order: number;
-  color: string;
 }
 
 export interface Product {
   id: string;
   name: string;
   categoryId: string;
+  brand: string;
   price: number;
   stock: number;
   reserved: number;
-  brand: string;
+  incoming: number;
   imageDataUrl: string | null;
-  barcode: string | null;
-  status: StockStatus;
-  saleDiscountPercent: number;
-  createdAt: string;
+  barcode?: string;
+  active: boolean;
 }
 
 export interface Customer {
   id: string;
   name: string;
-  phone: string;
-  email: string;
+  phone?: string;
+  email?: string;
   isProfessional: boolean;
-  defaultDiscountType: DiscountType | null;
-  defaultDiscountValue: number;
-  notes: string;
+  discountType: DiscountType;
+  discountValue: number;
+  notes?: string;
   createdAt: string;
-}
-
-export interface StaffMember {
-  id: string;
-  name: string;
-  role: 'owner' | 'staff';
-  pin: string;
-  canOverrideDiscount: boolean;
-  active: boolean;
 }
 
 export interface CartItem {
   productId: string;
   quantity: number;
   unitPrice: number;
-  discountPercent: number;
 }
 
 export interface SaleLine {
@@ -113,41 +102,39 @@ export interface SaleLine {
   productName: string;
   quantity: number;
   unitPrice: number;
-  discountPercent: number;
-  lineTotalExTva: number;
+  lineTotal: number;
 }
 
 export interface Sale {
   id: string;
   invoiceNumber: string;
+  createdAt: string;
   staffId: string;
   staffName: string;
   customerId: string | null;
-  customerName: string | null;
+  customerName: string;
   isGuest: boolean;
-  lines: SaleLine[];
+  items: SaleLine[];
   subtotalExTva: number;
-  discountAmount: number;
-  tvaPercent: number;
   tvaAmount: number;
+  discountAmount: number;
   totalIncTva: number;
   paymentMethod: PaymentMethod;
-  createdAt: string;
+  tvaPercent: number;
 }
 
 export interface Supplier {
   id: string;
   name: string;
-  contact: string;
-  phone: string;
-  email: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
 }
 
 export interface SupplierOrderItem {
-  productId: string | null;
+  productId: string;
   productName: string;
   quantity: number;
-  unitCost: number;
 }
 
 export interface SupplierOrder {
@@ -157,8 +144,8 @@ export interface SupplierOrder {
   items: SupplierOrderItem[];
   status: SupplierOrderStatus;
   orderedAt: string;
-  expectedAt: string;
-  notes: string;
+  expectedAt?: string;
+  notes?: string;
   updatedAt: string;
 }
 
@@ -166,27 +153,39 @@ export interface CalendarEvent {
   id: string;
   title: string;
   type: EventType;
-  date: string;
-  time: string;
-  endTime: string;
-  staffIds: string[];
-  notes: string;
+  color: string;
+  start: string;
+  end?: string;
+  staffId?: string;
+  customerId?: string;
+  supplierOrderId?: string;
+  notes?: string;
   priority: EventPriority;
   status: EventStatus;
-  linkedOrderId: string | null;
-  linkedCustomerId: string | null;
-  color: string;
 }
 
 export interface ReservedOrder {
   id: string;
   customerId: string;
   customerName: string;
-  productIds: string[];
-  productNames: string[];
+  productId: string;
+  productName: string;
+  quantity: number;
   pickupDate: string;
-  status: 'pending' | 'ready' | 'picked_up' | 'cancelled';
-  notes: string;
+  status: 'reserved' | 'ready' | 'picked_up' | 'cancelled';
+}
+
+export interface DashboardWidget {
+  id: WidgetId;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  visible: boolean;
+}
+
+export interface DashboardLayout {
+  widgets: DashboardWidget[];
 }
 
 export interface AppNotification {
@@ -195,24 +194,5 @@ export interface AppNotification {
   body: string;
   createdAt: string;
   read: boolean;
-  relatedType?: string;
-  relatedId?: string;
-}
-
-export interface AppState {
-  shop: ShopSettings;
-  themes: ThemeConfig[];
-  preferences: UserPreferences;
-  categories: Category[];
-  products: Product[];
-  customers: Customer[];
-  staff: StaffMember[];
-  sales: Sale[];
-  suppliers: Supplier[];
-  supplierOrders: SupplierOrder[];
-  events: CalendarEvent[];
-  reservedOrders: ReservedOrder[];
-  notifications: AppNotification[];
-  currentStaffId: string | null;
-  invoiceCounter: number;
+  relatedEventId?: string;
 }

@@ -1,268 +1,239 @@
 import { useMemo, useState } from 'react';
-import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameDay,
-  isSameMonth,
-  startOfMonth,
-  startOfWeek,
-} from 'date-fns';
-import { Plus } from 'lucide-react';
-import { useStore } from '../store/StoreContext';
-import { EVENT_TYPE_LABELS } from '../utils/helpers';
-import type { EventPriority, EventStatus, EventType } from '../types';
+import { useAppStore, useCurrentUser } from '../store/useAppStore';
+import { Modal } from '../components/common/Modal';
+import { fmtDateTime, uid } from '../lib/dates';
+import type { CalendarEvent, EventType } from '../types';
 
-const TYPE_COLORS: Record<EventType, string> = {
+const typeColors: Record<EventType, string> = {
   staff_schedule: '#c9a227',
-  customer_pickup: '#16a34a',
-  supplier_delivery: '#2563eb',
-  business_task: '#d97706',
-  personal_note: '#a855f7',
+  customer_pickup: '#22c55e',
+  supplier_delivery: '#38bdf8',
+  business_task: '#f97316',
+  personal_note: '#a78bfa',
 };
 
+const blank = (): CalendarEvent => ({
+  id: uid('ev'),
+  title: '',
+  type: 'business_task',
+  color: typeColors.business_task,
+  start: new Date().toISOString(),
+  priority: 'medium',
+  status: 'planned',
+});
+
 export function CalendarPage() {
-  const { state, addEvent, updateEvent, deleteEvent, currentStaff } = useStore();
-  const [cursor, setCursor] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    title: '',
-    type: 'business_task' as EventType,
-    date: format(new Date(), 'yyyy-MM-dd'),
-    time: '09:00',
-    endTime: '10:00',
-    staffIds: [] as string[],
-    notes: '',
-    priority: 'medium' as EventPriority,
-    status: 'pending' as EventStatus,
-  });
+  const events = useAppStore((s) => s.events);
+  const staff = useAppStore((s) => s.staff);
+  const upsertEvent = useAppStore((s) => s.upsertEvent);
+  const deleteEvent = useAppStore((s) => s.deleteEvent);
+  const notifications = useAppStore((s) => s.notifications);
+  const markRead = useAppStore((s) => s.markNotificationRead);
+  const user = useCurrentUser();
+  const [editing, setEditing] = useState<CalendarEvent | null>(null);
 
-  const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [cursor]);
-
-  const visibleEvents = state.events.filter((e) => {
-    if (currentStaff?.role === 'owner') return true;
-    return e.staffIds.length === 0 || (currentStaff && e.staffIds.includes(currentStaff.id));
-  });
-
-  const dayEvents = visibleEvents.filter((e) => e.date === selectedDate);
-
-  const save = () => {
-    if (!form.title.trim()) return;
-    addEvent({
-      title: form.title.trim(),
-      type: form.type,
-      date: form.date,
-      time: form.time,
-      endTime: form.endTime,
-      staffIds: form.staffIds,
-      notes: form.notes,
-      priority: form.priority,
-      status: form.status,
-      linkedOrderId: null,
-      linkedCustomerId: null,
-      color: TYPE_COLORS[form.type],
-    });
-    setOpen(false);
-    setSelectedDate(form.date);
-  };
+  const visible = useMemo(() => {
+    const sorted = [...events].sort((a, b) => a.start.localeCompare(b.start));
+    if (!user || user.role === 'owner') return sorted;
+    return sorted.filter(
+      (e) => !e.staffId || e.staffId === user.id || e.type !== 'personal_note',
+    );
+  }, [events, user]);
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Calendar</h2>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setForm((f) => ({ ...f, date: selectedDate, title: '' }));
-            setOpen(true);
-          }}
-        >
-          <Plus size={16} /> Add event
+    <div className="stack">
+      <div className="spread wrap">
+        <div>
+          <h1>Calendar</h1>
+          <p className="muted">
+            Schedules, pickups, deliveries, tasks, and notes — with notifications.
+          </p>
+        </div>
+        <button className="btn primary" onClick={() => setEditing(blank())}>
+          Add event
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 12 }}>
-        <div className="panel">
-          <div className="toolbar" style={{ justifyContent: 'space-between' }}>
-            <button type="button" className="btn btn-sm" onClick={() => setCursor(addMonths(cursor, -1))}>
-              ←
-            </button>
-            <strong>{format(cursor, 'MMMM yyyy')}</strong>
-            <button type="button" className="btn btn-sm" onClick={() => setCursor(addMonths(cursor, 1))}>
-              →
-            </button>
-          </div>
-          <div className="calendar-grid">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-              <div key={d} className="cal-day-head">{d}</div>
-            ))}
-            {days.map((day) => {
-              const key = format(day, 'yyyy-MM-dd');
-              const events = visibleEvents.filter((e) => e.date === key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={`cal-day ${!isSameMonth(day, cursor) ? 'outside' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                  onClick={() => setSelectedDate(key)}
-                  style={
-                    selectedDate === key
-                      ? { outline: '2px solid var(--color-accent)' }
-                      : undefined
-                  }
-                >
-                  <div className="num">{format(day, 'd')}</div>
-                  {events.slice(0, 3).map((e) => (
-                    <div
-                      key={e.id}
-                      className="cal-event-dot"
-                      style={{ background: e.color || TYPE_COLORS[e.type] }}
-                    >
-                      {e.title}
-                    </div>
-                  ))}
-                </button>
-              );
-            })}
-          </div>
-          <div className="filters" style={{ marginTop: 12 }}>
-            {(Object.keys(TYPE_COLORS) as EventType[]).map((t) => (
-              <span key={t} className="badge" style={{ background: TYPE_COLORS[t], color: '#111' }}>
-                {EVENT_TYPE_LABELS[t]}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel">
-          <h3 style={{ marginTop: 0 }}>{selectedDate}</h3>
-          <div className="list-compact">
-            {dayEvents.map((e) => (
-              <div key={e.id} className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{e.title}</strong>
-                  <span className="badge" style={{ background: e.color, color: '#111' }}>
-                    {EVENT_TYPE_LABELS[e.type]}
-                  </span>
+      <div className="panel" style={{ padding: 14 }}>
+        <h3>Notifications</h3>
+        <div className="stack" style={{ marginTop: 8 }}>
+          {notifications.length === 0 ? (
+            <div className="muted">No notifications</div>
+          ) : (
+            notifications.slice(0, 6).map((n) => (
+              <div key={n.id} className="spread">
+                <div>
+                  <div style={{ fontWeight: 700, opacity: n.read ? 0.65 : 1 }}>{n.title}</div>
+                  <div className="tiny muted">{n.body}</div>
                 </div>
-                <div style={{ color: 'var(--color-muted)', fontSize: '0.82rem' }}>
-                  {e.time}–{e.endTime} · {e.priority} · {e.status}
-                </div>
-                {e.notes ? <div style={{ fontSize: '0.85rem' }}>{e.notes}</div> : null}
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <select
-                    value={e.status}
-                    onChange={(ev) =>
-                      updateEvent(e.id, { status: ev.target.value as EventStatus })
-                    }
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="done">Done</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteEvent(e.id)}>
-                    Delete
+                {!n.read ? (
+                  <button className="btn ghost" onClick={() => markRead(n.id)}>
+                    Mark read
                   </button>
-                </div>
+                ) : (
+                  <span className="tiny muted">Read</span>
+                )}
               </div>
-            ))}
-            {!dayEvents.length ? <div className="empty">No events this day</div> : null}
-          </div>
+            ))
+          )}
         </div>
       </div>
 
-      {open ? (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>New event</h3>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Close</button>
-            </div>
-            <div className="field">
-              <label>Title</label>
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            </div>
-            <div className="field-row">
+      <div className="panel" style={{ padding: 12 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Event</th>
+              <th>Type</th>
+              <th>Staff</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((e) => (
+              <tr key={e.id}>
+                <td>{fmtDateTime(e.start)}</td>
+                <td>
+                  <div className="row">
+                    <span className="color-swatch" style={{ background: e.color, width: 12, height: 12 }} />
+                    {e.title}
+                  </div>
+                </td>
+                <td>{e.type.replaceAll('_', ' ')}</td>
+                <td>{staff.find((s) => s.id === e.staffId)?.name || '—'}</td>
+                <td>{e.priority}</td>
+                <td>{e.status}</td>
+                <td>
+                  <button className="btn ghost" onClick={() => setEditing(e)}>
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Modal open={!!editing} title="Event" onClose={() => setEditing(null)}>
+        {editing ? (
+          <div className="stack">
+            <div className="grid-2">
+              <div className="field">
+                <label>Title</label>
+                <input
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+              </div>
               <div className="field">
                 <label>Type</label>
                 <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as EventType })}
+                  value={editing.type}
+                  onChange={(e) => {
+                    const type = e.target.value as EventType;
+                    setEditing({ ...editing, type, color: typeColors[type] });
+                  }}
                 >
-                  {(Object.keys(EVENT_TYPE_LABELS) as EventType[]).map((t) => (
-                    <option key={t} value={t}>{EVENT_TYPE_LABELS[t]}</option>
+                  {Object.keys(typeColors).map((t) => (
+                    <option key={t} value={t}>
+                      {t.replaceAll('_', ' ')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Start</label>
+                <input
+                  type="datetime-local"
+                  value={editing.start.slice(0, 16)}
+                  onChange={(e) =>
+                    setEditing({ ...editing, start: new Date(e.target.value).toISOString() })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Staff assigned</label>
+                <select
+                  value={editing.staffId || ''}
+                  onChange={(e) => setEditing({ ...editing, staffId: e.target.value || undefined })}
+                >
+                  <option value="">Anyone / shop</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="field">
                 <label>Priority</label>
                 <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value as EventPriority })}
+                  value={editing.priority}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      priority: e.target.value as CalendarEvent['priority'],
+                    })
+                  }
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
               </div>
-            </div>
-            <div className="field-row">
               <div className="field">
-                <label>Date</label>
-                <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-              </div>
-              <div className="field">
-                <label>Time</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
-                  <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
-                </div>
-              </div>
-            </div>
-            <div className="field">
-              <label>Assign staff</label>
-              <div className="filters">
-                {state.staff.map((s) => {
-                  const on = form.staffIds.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`btn btn-sm ${on ? 'btn-primary' : ''}`}
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          staffIds: on
-                            ? form.staffIds.filter((id) => id !== s.id)
-                            : [...form.staffIds, s.id],
-                        })
-                      }
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
+                <label>Status</label>
+                <select
+                  value={editing.status}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      status: e.target.value as CalendarEvent['status'],
+                    })
+                  }
+                >
+                  <option value="planned">Planned</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="done">Done</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
               </div>
             </div>
             <div className="field">
               <label>Notes</label>
-              <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <textarea
+                rows={3}
+                value={editing.notes || ''}
+                onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+              />
             </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-primary" onClick={save}>Save event</button>
+            <div className="row">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  if (!editing.title.trim()) return;
+                  upsertEvent(editing);
+                  setEditing(null);
+                }}
+              >
+                Save
+              </button>
+              <button
+                className="btn danger"
+                onClick={() => {
+                  deleteEvent(editing.id);
+                  setEditing(null);
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </Modal>
     </div>
   );
 }
