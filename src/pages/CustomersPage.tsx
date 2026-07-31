@@ -1,105 +1,93 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { useStore } from '../store/StoreContext';
-import type { Customer, DiscountType } from '../types';
+import { useAppStore } from '../store/useAppStore';
+import { Modal } from '../components/common/Modal';
+import { uid } from '../lib/dates';
+import type { Customer } from '../types';
 
-const blank = {
+const blank = (): Customer => ({
+  id: uid('cust'),
   name: '',
   phone: '',
   email: '',
   isProfessional: false,
-  defaultDiscountType: '' as '' | DiscountType,
-  defaultDiscountValue: '0',
-  notes: '',
-};
+  discountType: 'percent',
+  discountValue: 0,
+  createdAt: new Date().toISOString(),
+});
 
 export function CustomersPage() {
-  const { state, addCustomer, updateCustomer } = useStore();
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(blank);
-
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(blank);
-    setOpen(true);
-  };
-
-  const openEdit = (c: Customer) => {
-    setEditingId(c.id);
-    setForm({
-      name: c.name,
-      phone: c.phone,
-      email: c.email,
-      isProfessional: c.isProfessional,
-      defaultDiscountType: c.defaultDiscountType ?? '',
-      defaultDiscountValue: String(c.defaultDiscountValue),
-      notes: c.notes,
-    });
-    setOpen(true);
-  };
-
-  const save = () => {
-    if (!form.name.trim()) return;
-    const payload = {
-      name: form.name.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      isProfessional: form.isProfessional,
-      defaultDiscountType: (form.defaultDiscountType || null) as DiscountType | null,
-      defaultDiscountValue: parseFloat(form.defaultDiscountValue) || 0,
-      notes: form.notes,
-    };
-    if (editingId) updateCustomer(editingId, payload);
-    else addCustomer(payload);
-    setOpen(false);
-  };
+  const customers = useAppStore((s) => s.customers);
+  const upsertCustomer = useAppStore((s) => s.upsertCustomer);
+  const convertGuestToCustomer = useAppStore((s) => s.convertGuestToCustomer);
+  const [editing, setEditing] = useState<Customer | null>(null);
+  const [guestName, setGuestName] = useState('');
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Customers</h2>
-        <button type="button" className="btn btn-primary" onClick={openCreate}>
-          <Plus size={16} /> Create customer
+    <div className="stack">
+      <div className="spread wrap">
+        <div>
+          <h1>Customers</h1>
+          <p className="muted">
+            Optional accounts with automatic discounts. Guests can buy without an account.
+          </p>
+        </div>
+        <button className="btn primary" onClick={() => setEditing(blank())}>
+          Create customer
         </button>
       </div>
-      <p style={{ color: 'var(--color-muted)', marginTop: -8 }}>
-        Guest walk-ins work without an account. Create profiles for regulars and professionals to apply automatic discounts at checkout.
-      </p>
 
-      <div className="panel" style={{ marginTop: 12 }}>
+      <div className="panel" style={{ padding: 14 }}>
+        <h3>Convert guest to account</h3>
+        <div className="row" style={{ marginTop: 8 }}>
+          <input
+            placeholder="Guest name"
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button
+            className="btn"
+            onClick={() => {
+              if (!guestName.trim()) return;
+              const id = convertGuestToCustomer(guestName.trim());
+              const created = useAppStore.getState().customers.find((c) => c.id === id);
+              if (created) setEditing(created);
+              setGuestName('');
+            }}
+          >
+            Convert in a few taps
+          </button>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: 12, overflow: 'auto' }}>
         <table className="table">
           <thead>
             <tr>
               <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
               <th>Type</th>
-              <th>Contact</th>
               <th>Default discount</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {state.customers.map((c) => (
+            {customers.map((c) => (
               <tr key={c.id}>
                 <td>{c.name}</td>
+                <td>{c.phone || '—'}</td>
+                <td>{c.email || '—'}</td>
+                <td>{c.isProfessional ? 'Professional' : 'Regular'}</td>
                 <td>
-                  <span className={`badge ${c.isProfessional ? 'success' : 'muted'}`}>
-                    {c.isProfessional ? 'Professional' : 'Personal'}
-                  </span>
+                  {c.discountValue
+                    ? c.discountType === 'percent'
+                      ? `${c.discountValue}%`
+                      : c.discountValue
+                    : 'None'}
                 </td>
                 <td>
-                  {c.phone}
-                  <div style={{ color: 'var(--color-muted)', fontSize: '0.8rem' }}>{c.email}</div>
-                </td>
-                <td>
-                  {c.defaultDiscountType
-                    ? c.defaultDiscountType === 'percentage'
-                      ? `${c.defaultDiscountValue}%`
-                      : `${state.shop.currencySymbol}${c.defaultDiscountValue.toFixed(2)}`
-                    : '—'}
-                </td>
-                <td>
-                  <button type="button" className="btn btn-sm" onClick={() => openEdit(c)}>
+                  <button className="btn ghost" onClick={() => setEditing(c)}>
                     Edit
                   </button>
                 </td>
@@ -109,49 +97,62 @@ export function CustomersPage() {
         </table>
       </div>
 
-      {open ? (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{editingId ? 'Edit customer' : 'New customer'}</h3>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Close</button>
-            </div>
-            <div className="field">
-              <label>Name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="field-row">
+      <Modal open={!!editing} title="Customer account" onClose={() => setEditing(null)}>
+        {editing ? (
+          <div className="stack">
+            <div className="grid-2">
+              <div className="field">
+                <label>Name</label>
+                <input
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                />
+              </div>
               <div className="field">
                 <label>Phone</label>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                <input
+                  value={editing.phone || ''}
+                  onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
+                />
               </div>
               <div className="field">
                 <label>Email</label>
-                <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <input
+                  value={editing.email || ''}
+                  onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+                />
               </div>
-            </div>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-              <input
-                type="checkbox"
-                checked={form.isProfessional}
-                onChange={(e) => setForm({ ...form, isProfessional: e.target.checked })}
-              />
-              Professional account
-            </label>
-            <div className="field-row">
               <div className="field">
-                <label>Discount type</label>
+                <label>Account type</label>
                 <select
-                  value={form.defaultDiscountType}
+                  value={editing.isProfessional ? 'pro' : 'regular'}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      defaultDiscountType: e.target.value as '' | DiscountType,
+                    setEditing({
+                      ...editing,
+                      isProfessional: e.target.value === 'pro',
+                      discountValue:
+                        e.target.value === 'pro' && !editing.discountValue
+                          ? 10
+                          : editing.discountValue,
                     })
                   }
                 >
-                  <option value="">None</option>
-                  <option value="percentage">Percentage</option>
+                  <option value="regular">Regular</option>
+                  <option value="pro">Professional</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Discount type</label>
+                <select
+                  value={editing.discountType}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      discountType: e.target.value as 'percent' | 'fixed',
+                    })
+                  }
+                >
+                  <option value="percent">Percent</option>
                   <option value="fixed">Fixed amount</option>
                 </select>
               </div>
@@ -159,8 +160,11 @@ export function CustomersPage() {
                 <label>Discount value</label>
                 <input
                   type="number"
-                  value={form.defaultDiscountValue}
-                  onChange={(e) => setForm({ ...form, defaultDiscountValue: e.target.value })}
+                  min={0}
+                  value={editing.discountValue}
+                  onChange={(e) =>
+                    setEditing({ ...editing, discountValue: Number(e.target.value) || 0 })
+                  }
                 />
               </div>
             </div>
@@ -168,16 +172,23 @@ export function CustomersPage() {
               <label>Notes</label>
               <textarea
                 rows={3}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                value={editing.notes || ''}
+                onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
               />
             </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-primary" onClick={save}>Save</button>
-            </div>
+            <button
+              className="btn primary"
+              onClick={() => {
+                if (!editing.name.trim()) return;
+                upsertCustomer(editing);
+                setEditing(null);
+              }}
+            >
+              Save account
+            </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </Modal>
     </div>
   );
 }

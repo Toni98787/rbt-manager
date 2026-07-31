@@ -1,203 +1,244 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { useStore } from '../store/StoreContext';
-import { ORDER_STATUS_META } from '../utils/helpers';
-import type { SupplierOrderStatus } from '../types';
+import { useAppStore, useCurrentUser } from '../store/useAppStore';
+import { Modal } from '../components/common/Modal';
+import { fmtDate, uid } from '../lib/dates';
+import type { SupplierOrder, SupplierOrderStatus } from '../types';
 
-const STATUSES: SupplierOrderStatus[] = ['ordered', 'on_the_way', 'arrived', 'in_store'];
+const statuses: SupplierOrderStatus[] = ['ordered', 'on_the_way', 'arrived', 'in_store'];
+
+const blank = (): SupplierOrder => ({
+  id: uid('so'),
+  supplierId: '',
+  supplierName: '',
+  items: [],
+  status: 'ordered',
+  orderedAt: new Date().toISOString(),
+  expectedAt: new Date(Date.now() + 3 * 86400000).toISOString(),
+  updatedAt: new Date().toISOString(),
+});
 
 export function SuppliersPage() {
-  const {
-    state,
-    updateSupplierOrderStatus,
-    receiveSupplierOrder,
-    addSupplierOrder,
-    currentStaff,
-  } = useStore();
-  const isOwner = currentStaff?.role === 'owner';
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    supplierId: state.suppliers[0]?.id ?? '',
-    productId: state.products[0]?.id ?? '',
-    quantity: '12',
-    unitCost: '1',
-    expectedAt: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-    notes: '',
-  });
-
-  const statusIndex = (s: SupplierOrderStatus) => STATUSES.indexOf(s);
+  const orders = useAppStore((s) => s.supplierOrders);
+  const suppliers = useAppStore((s) => s.suppliers);
+  const products = useAppStore((s) => s.products);
+  const updateStatus = useAppStore((s) => s.updateSupplierOrderStatus);
+  const receive = useAppStore((s) => s.receiveSupplierOrder);
+  const upsert = useAppStore((s) => s.upsertSupplierOrder);
+  const user = useCurrentUser();
+  const isOwner = user?.role === 'owner';
+  const [editing, setEditing] = useState<SupplierOrder | null>(null);
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Supplier orders</h2>
+    <div className="stack">
+      <div className="spread wrap">
+        <div>
+          <h1>Supplier orders</h1>
+          <p className="muted">
+            Track Ordered → On the way → Arrived → In store. Receive stock when ready.
+          </p>
+        </div>
         {isOwner ? (
-          <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
-            <Plus size={16} /> New order
+          <button
+            className="btn primary"
+            onClick={() => {
+              const first = suppliers[0];
+              setEditing({
+                ...blank(),
+                supplierId: first?.id || '',
+                supplierName: first?.name || '',
+                items: products[0]
+                  ? [{ productId: products[0].id, productName: products[0].name, quantity: 10 }]
+                  : [],
+              });
+            }}
+          >
+            New order
           </button>
         ) : null}
       </div>
-      <p style={{ color: 'var(--color-muted)', marginTop: -8 }}>
-        {isOwner
-          ? 'Update status with one tap. When marked in store, receive to update inventory.'
-          : 'View-only incoming deliveries for your shift.'}
-      </p>
 
-      <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-        {state.supplierOrders.map((order) => {
-          const idx = statusIndex(order.status);
+      {!isOwner ? (
+        <div className="panel" style={{ padding: 14 }}>
+          <h3>Incoming (staff view)</h3>
+          <div className="stack" style={{ marginTop: 8 }}>
+            {orders
+              .filter((o) => o.status !== 'in_store')
+              .map((o) => (
+                <div key={o.id} className="spread">
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{o.supplierName}</div>
+                    <div className="tiny muted">
+                      Expected {o.expectedAt ? fmtDate(o.expectedAt) : 'TBD'}
+                    </div>
+                  </div>
+                  <span className={`status-pill status-${o.status}`}>
+                    {o.status.replaceAll('_', ' ')}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="stack">
+        {orders.map((o) => {
+          const stepIndex = statuses.indexOf(o.status);
           return (
-            <div key={order.id} className="panel">
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <article key={o.id} className="panel" style={{ padding: 14 }}>
+              <div className="spread wrap">
                 <div>
-                  <h3 style={{ margin: 0 }}>{order.supplierName}</h3>
-                  <div style={{ color: 'var(--color-muted)', fontSize: '0.85rem' }}>
-                    Expected {order.expectedAt} · Ordered {new Date(order.orderedAt).toLocaleDateString()}
+                  <h3>{o.supplierName}</h3>
+                  <div className="tiny muted">
+                    Ordered {fmtDate(o.orderedAt)}
+                    {o.expectedAt ? ` · Expected ${fmtDate(o.expectedAt)}` : ''}
                   </div>
                 </div>
-                <span
-                  className="badge"
-                  style={{ background: ORDER_STATUS_META[order.status].color, color: '#fff' }}
-                >
-                  {ORDER_STATUS_META[order.status].label}
+                <span className={`status-pill status-${o.status}`}>
+                  {o.status.replaceAll('_', ' ')}
                 </span>
               </div>
 
               <div className="timeline">
-                {STATUSES.map((s, i) => (
+                {statuses.map((s, i) => (
                   <div
                     key={s}
-                    className={`timeline-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}`}
+                    className={`step ${i < stepIndex ? 'done' : ''} ${i === stepIndex ? 'current' : ''}`}
                   >
-                    <div className="dot" />
-                    {ORDER_STATUS_META[s].label}
+                    {s.replaceAll('_', ' ')}
                   </div>
                 ))}
               </div>
 
-              <div className="list-compact" style={{ marginTop: 8 }}>
-                {order.items.map((item, i) => (
-                  <div key={`${item.productName}-${i}`} className="row">
-                    <span>{item.productName}</span>
-                    <span>×{item.quantity}</span>
-                  </div>
-                ))}
+              <div className="tiny muted" style={{ marginTop: 10 }}>
+                {o.items.map((i) => `${i.productName} × ${i.quantity}`).join(' · ')}
               </div>
 
               {isOwner ? (
-                <div className="filters" style={{ marginTop: 12 }}>
-                  {STATUSES.map((s) => (
+                <div className="row wrap" style={{ marginTop: 12 }}>
+                  {statuses.map((s) => (
                     <button
                       key={s}
-                      type="button"
-                      className={`btn btn-sm ${order.status === s ? 'btn-primary' : ''}`}
-                      style={
-                        order.status === s
-                          ? undefined
-                          : { borderColor: ORDER_STATUS_META[s].color, color: ORDER_STATUS_META[s].color }
-                      }
-                      onClick={() => updateSupplierOrderStatus(order.id, s)}
+                      className={`chip ${o.status === s ? 'active' : ''}`}
+                      onClick={() => updateStatus(o.id, s)}
                     >
-                      {ORDER_STATUS_META[s].label}
+                      {s.replaceAll('_', ' ')}
                     </button>
                   ))}
-                  {(order.status === 'arrived' || order.status === 'in_store') && (
-                    <button
-                      type="button"
-                      className="btn btn-success btn-sm"
-                      onClick={() => receiveSupplierOrder(order.id)}
-                      disabled={order.status === 'in_store'}
-                    >
+                  {o.status === 'in_store' ? (
+                    <button className="btn primary" onClick={() => receive(o.id)}>
                       Receive into inventory
                     </button>
-                  )}
+                  ) : null}
+                  <button className="btn ghost" onClick={() => setEditing(o)}>
+                    Edit
+                  </button>
                 </div>
               ) : null}
-            </div>
+            </article>
           );
         })}
       </div>
 
-      {open ? (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>New supplier order</h3>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Close</button>
-            </div>
+      <Modal open={!!editing && isOwner} title="Supplier order" onClose={() => setEditing(null)}>
+        {editing ? (
+          <div className="stack">
             <div className="field">
               <label>Supplier</label>
               <select
-                value={form.supplierId}
-                onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
+                value={editing.supplierId}
+                onChange={(e) => {
+                  const sup = suppliers.find((s) => s.id === e.target.value);
+                  setEditing({
+                    ...editing,
+                    supplierId: e.target.value,
+                    supplierName: sup?.name || '',
+                  });
+                }}
               >
-                {state.suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </select>
-            </div>
-            <div className="field">
-              <label>Product</label>
-              <select
-                value={form.productId}
-                onChange={(e) => setForm({ ...form, productId: e.target.value })}
-              >
-                {state.products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field-row">
-              <div className="field">
-                <label>Quantity</label>
-                <input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
-              </div>
-              <div className="field">
-                <label>Unit cost</label>
-                <input value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} />
-              </div>
             </div>
             <div className="field">
               <label>Expected date</label>
-              <input type="date" value={form.expectedAt} onChange={(e) => setForm({ ...form, expectedAt: e.target.value })} />
+              <input
+                type="date"
+                value={(editing.expectedAt || '').slice(0, 10)}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    expectedAt: new Date(e.target.value).toISOString(),
+                  })
+                }
+              />
             </div>
             <div className="field">
               <label>Notes</label>
-              <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <textarea
+                rows={2}
+                value={editing.notes || ''}
+                onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+              />
             </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  const supplier = state.suppliers.find((s) => s.id === form.supplierId);
-                  const product = state.products.find((p) => p.id === form.productId);
-                  if (!supplier || !product) return;
-                  addSupplierOrder({
-                    supplierId: supplier.id,
-                    supplierName: supplier.name,
+            <div className="field">
+              <label>First line product</label>
+              <select
+                value={editing.items[0]?.productId || ''}
+                onChange={(e) => {
+                  const p = products.find((x) => x.id === e.target.value);
+                  if (!p) return;
+                  setEditing({
+                    ...editing,
                     items: [
                       {
-                        productId: product.id,
-                        productName: product.name,
-                        quantity: parseInt(form.quantity, 10) || 1,
-                        unitCost: parseFloat(form.unitCost) || 0,
+                        productId: p.id,
+                        productName: p.name,
+                        quantity: editing.items[0]?.quantity || 10,
                       },
                     ],
-                    status: 'ordered',
-                    orderedAt: new Date().toISOString(),
-                    expectedAt: form.expectedAt,
-                    notes: form.notes,
                   });
-                  setOpen(false);
                 }}
               >
-                Create order
-              </button>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </div>
+            <div className="field">
+              <label>Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={editing.items[0]?.quantity || 1}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    items: editing.items.map((item, idx) =>
+                      idx === 0
+                        ? { ...item, quantity: Number(e.target.value) || 1 }
+                        : item,
+                    ),
+                  })
+                }
+              />
+            </div>
+            <button
+              className="btn primary"
+              onClick={() => {
+                upsert({ ...editing, updatedAt: new Date().toISOString() });
+                setEditing(null);
+              }}
+            >
+              Save order
+            </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </Modal>
     </div>
   );
 }
