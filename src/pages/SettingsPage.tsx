@@ -322,7 +322,7 @@ export function SettingsPage() {
                     <div style={{ fontWeight: 700, fontSize: draft.fontSize === 'large' ? 15 : 13 }}>
                       Product {n}
                     </div>
-                    <div style={{ color: draft.accent, fontWeight: 700 }}>$18.00</div>
+                    <div style={{ color: draft.accent, fontWeight: 700 }}>$18</div>
                   </div>
                 ))}
               </div>

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAppStore, useCurrentUser } from '../store/useAppStore';
 import { money, calcTva, round2 } from '../lib/money';
 import { Modal } from '../components/common/Modal';
-import { downloadInvoice, mailtoInvoice, openInvoicePreview } from '../lib/invoice';
+import { downloadInvoice, printInvoice, sendInvoice } from '../lib/invoice';
 import type { PaymentMethod, Sale } from '../types';
 
 export function PosPage() {
@@ -317,28 +317,29 @@ export function PosPage() {
               Invoice <strong>{lastSale.invoiceNumber}</strong> ·{' '}
               {money(lastSale.totalIncTva, shop.currency)} · {lastSale.paymentMethod}
             </p>
+            <p className="tiny muted">A4 invoice (210 × 297 mm) — print, download, or send.</p>
             <div className="grid-2">
-              <button className="btn" onClick={() => openInvoicePreview(lastSale, shop, true)}>
-                Preview client PDF
+              <button className="btn primary" onClick={() => printInvoice(lastSale, shop, true)}>
+                Print client A4
               </button>
-              <button className="btn" onClick={() => openInvoicePreview(lastSale, shop, false)}>
-                Preview shop PDF
+              <button className="btn primary" onClick={() => printInvoice(lastSale, shop, false)}>
+                Print shop A4
               </button>
-              <button className="btn primary" onClick={() => downloadInvoice(lastSale, shop, true)}>
-                Download / print client
+              <button className="btn" onClick={() => downloadInvoice(lastSale, shop, true)}>
+                Download client PDF
               </button>
-              <button className="btn primary" onClick={() => downloadInvoice(lastSale, shop, false)}>
-                Download / print shop
+              <button className="btn" onClick={() => downloadInvoice(lastSale, shop, false)}>
+                Download shop PDF
               </button>
             </div>
             <button
               className="btn"
               onClick={() => {
                 const email = customers.find((c) => c.id === lastSale.customerId)?.email;
-                mailtoInvoice(lastSale, shop, email);
+                void sendInvoice(lastSale, shop, email, true);
               }}
             >
-              Send by email
+              Send / share invoice
             </button>
           </div>
         ) : null}

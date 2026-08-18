@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { periodTotals, topProducts, salesInPeriod } from '../lib/salesStats';
 import { money } from '../lib/money';
 import { fmtDateTime, type Period } from '../lib/dates';
-import { downloadInvoice, openInvoicePreview, mailtoInvoice } from '../lib/invoice';
+import { downloadInvoice, printInvoice, sendInvoice } from '../lib/invoice';
 
 export function SalesPage() {
   const shop = useAppStore((s) => s.shop);
@@ -81,23 +81,24 @@ export function SalesPage() {
                   <td>{money(s.totalIncTva, shop.currency)}</td>
                   <td>
                     <div className="row">
-                      <button className="btn ghost" onClick={() => openInvoicePreview(s, shop, true)}>
-                        PDF
+                      <button className="btn ghost" onClick={() => printInvoice(s, shop, true)}>
+                        Print A4
                       </button>
                       <button className="btn ghost" onClick={() => downloadInvoice(s, shop, true)}>
-                        Save
+                        PDF
                       </button>
                       <button
                         className="btn ghost"
                         onClick={() =>
-                          mailtoInvoice(
+                          void sendInvoice(
                             s,
                             shop,
                             customers.find((c) => c.id === s.customerId)?.email,
+                            true,
                           )
                         }
                       >
-                        Mail
+                        Send
                       </button>
                     </div>
                   </td>

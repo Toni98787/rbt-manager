@@ -224,9 +224,10 @@ export const useAppStore = create<AppState>()(
 
       upsertProduct: (product) => {
         const products = [...get().products];
-        const idx = products.findIndex((p) => p.id === product.id);
-        if (idx >= 0) products[idx] = product;
-        else products.push(product);
+        const next = { ...product, price: Math.round(product.price) };
+        const idx = products.findIndex((p) => p.id === next.id);
+        if (idx >= 0) products[idx] = next;
+        else products.push(next);
         set({ products });
       },
       deleteProduct: (id) => set({ products: get().products.filter((p) => p.id !== id) }),
