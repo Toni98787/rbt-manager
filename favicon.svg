@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
-  <rect x="4" y="4" width="56" height="56" rx="12" stroke="#c9a227" stroke-width="2"/>
-  <text x="32" y="42" text-anchor="middle" font-family="Georgia, serif" font-size="26" fill="#c9a227">R</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c9a227"/>
+      <stop offset="100%" stop-color="#1a1408"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0a0a0a"/>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#g)" opacity="0.25"/>
+  <text x="64" y="78" text-anchor="middle" font-family="Georgia, serif" font-size="42" font-weight="700" fill="#c9a227">RBT</text>
 </svg>
