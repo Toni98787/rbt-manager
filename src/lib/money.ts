@@ -1,24 +1,28 @@
 export function money(amount: number, currency = 'USD'): string {
+  const n = Math.round(amount);
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   } catch {
-    return `${amount.toFixed(2)} ${currency}`;
+    return `${n} ${currency}`;
   }
 }
 
+/** Whole-unit rounding (no decimals). */
 export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+  return Math.round(n);
 }
 
 export function calcTva(subtotalExTva: number, tvaPercent: number) {
-  const tvaAmount = round2(subtotalExTva * (tvaPercent / 100));
+  const base = round2(subtotalExTva);
+  const tvaAmount = round2(base * (tvaPercent / 100));
   return {
-    subtotalExTva: round2(subtotalExTva),
+    subtotalExTva: base,
     tvaAmount,
-    totalIncTva: round2(subtotalExTva + tvaAmount),
+    totalIncTva: round2(base + tvaAmount),
   };
 }

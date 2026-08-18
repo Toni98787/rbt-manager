@@ -8,7 +8,8 @@ iPad-first barbershop business platform for inventory, POS, customers, sales rep
 - **POS** — category tabs, photo product grid with +/- quantity and Select, side cart with TVA
 - **Configurable TVA** — default 16%, editable in Settings
 - **Payments** — confirm cash or card (no payment terminal integration)
-- **PDF invoices** — client + shop copies, preview, download/print, email
+- **PDF invoices** — A4 page (210 × 297 mm), client + shop copies, print, download, and share
+- **Whole-number prices** — amounts display without decimals
 - **Customers** — guest walk-ins + optional accounts with automatic discounts
 - **Inventory** — categories, gallery photo import, stock receive
 - **Sales reports** — day / week / month / year with ex-TVA, TVA, totals, best sellers

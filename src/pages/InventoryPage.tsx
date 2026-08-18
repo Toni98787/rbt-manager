@@ -194,13 +194,15 @@ export function InventoryPage() {
                 </select>
               </div>
               <div className="field">
-                <label>Price (ex TVA)</label>
+                <label>Price (ex TVA, whole number)</label>
                 <input
                   type="number"
                   min={0}
-                  step={0.01}
-                  value={editing.price}
-                  onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) || 0 })}
+                  step={1}
+                  value={Math.round(editing.price)}
+                  onChange={(e) =>
+                    setEditing({ ...editing, price: Math.round(Number(e.target.value) || 0) })
+                  }
                 />
               </div>
               <div className="field">
